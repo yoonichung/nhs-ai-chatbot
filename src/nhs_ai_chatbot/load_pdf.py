@@ -1,4 +1,6 @@
 from langchain_community.document_loaders import PyPDFDirectoryLoader, PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain.schema.document import Document
 from pathlib import Path
 import logging
 
@@ -6,7 +8,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-def load_pdf(pdf_path_str: str):
+def load_pdfs(pdf_path_str: str) -> list[Document]:
     try:
         pdf_path = validate_pdf_path(pdf_path_str)
 
@@ -44,10 +46,32 @@ def validate_pdf_path(path_str: str) -> Path:
     return path
 
 
+def split_documents(
+    documents: list[Document], chunk_size: int = 500, chunk_overlap: int = 50
+):
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size, chunk_overlap=chunk_overlap, length_function=len
+    )
+    # TODO (later): need to think about token limits (1 token = ~4 characters so 500 tokens = 125 characters) but needto think about e.g. response too
+    # all sample pdfs = 37508 characters so need ~9352 tokes just for reading in
+    split_documents = []
+    for doc in documents:
+        split_documents.extend(splitter.split_text(doc.page_content))
+        # TODO 1. need to split document instead so that we have the chunk - figure out why it wasnt working
+    return split_documents
+
+
 if __name__ == "__main__":
     print("!!!!!!")
-    pdf_path_str = "/Users/yooni/Repos/nhs-ai-chatbot/sample_pdfs/VV open Surgery.pdf"
-    doc = load_pdf(pdf_path_str)
-    # print(doc)
 
-# TODO: group pdfs according to files if multiple pages
+    from embedding_function import get_embedding_function
+
+    pdf_path_str = "/Users/yooni/Repos/nhs-ai-chatbot/sample_pdfs/VV open Surgery.pdf"
+    docs = load_pdfs(pdf_path_str)
+    chunks = split_documents(docs)
+    print(len(chunks))
+    print(chunks[0])
+    embeddings = get_embedding_function()
+    print(embeddings)
+    print(type(embeddings))
+    # print(len(docs))
