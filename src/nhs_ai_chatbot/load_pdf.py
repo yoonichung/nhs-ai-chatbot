@@ -1,33 +1,52 @@
-from langchain_community.document_loaders import PyPDFDirectoryLoader, PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain.schema.document import Document
-from pathlib import Path
 import logging
+from pypdf import PdfReader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
+from pathlib import Path
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
 def load_pdfs(pdf_path_str: str) -> list[Document]:
+    """
+    Parses a single PDF or a directory of PDFs
+    and returns a list of LangChain Document objects.
+    """
     try:
         pdf_path = validate_pdf_path(pdf_path_str)
+        documents = []
 
-        if pdf_path.is_file():
-            logger.info(f"Loading PDF file: {pdf_path}")
-            pdf_loader = PyPDFLoader(pdf_path)
-        else:
-            logger.info(f"Loading PDF files from directory: {pdf_path}")
-            pdf_loader = PyPDFDirectoryLoader(pdf_path, glob="*.pdf")
+        files_to_process = (
+            [pdf_path] if pdf_path.is_file() else list(pdf_path.glob("*.pdf"))
+        )
 
-        documents = pdf_loader.load()
-        logger.info(f"Loaded {len(documents)} documents")
+        for file_path in files_to_process:
+            logger.info(f"Loading PDF file: {file_path}")
+            reader = PdfReader(file_path)
+
+            # Extract text per page to preserve page indexing metadata
+            for page_num, page in enumerate(reader.pages):
+                text = page.extract_text()
+                if text and text.strip():
+                    doc = Document(
+                        page_content=text,
+                        metadata={
+                            "source": str(file_path),
+                            "page": page_num + 1,  # Human-readable 1-based page index
+                        },
+                    )
+                    documents.append(doc)
+        logger.info(
+            f"Loaded {len(documents)} pages from {pdf_path.name if pdf_path.is_file() else pdf_path}"
+        )
         return documents
     except (FileNotFoundError, ValueError) as e:
         logger.error(f"Error loading PDF: {e}")
-        return None
+        return []
     except Exception as e:
         logger.error(f"An unexpected error occurred while loading PDFs: {e}")
-        return None
+        return []
 
 
 def validate_pdf_path(path_str: str) -> Path:
@@ -48,30 +67,8 @@ def validate_pdf_path(path_str: str) -> Path:
 
 def split_documents(
     documents: list[Document], chunk_size: int = 500, chunk_overlap: int = 50
-):
+) -> list[Document]:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size, chunk_overlap=chunk_overlap, length_function=len
     )
-    # TODO (later): need to think about token limits (1 token = ~4 characters so 500 tokens = 125 characters) but needto think about e.g. response too
-    # all sample pdfs = 37508 characters so need ~9352 tokes just for reading in
-    split_documents = []
-    for doc in documents:
-        split_documents.extend(splitter.split_text(doc.page_content))
-        # TODO 1. need to split document instead so that we have the chunk - figure out why it wasnt working
-    return split_documents
-
-
-if __name__ == "__main__":
-    print("!!!!!!")
-
-    from embedding_function import get_embedding_function
-
-    pdf_path_str = "/Users/yooni/Repos/nhs-ai-chatbot/sample_pdfs/VV open Surgery.pdf"
-    docs = load_pdfs(pdf_path_str)
-    chunks = split_documents(docs)
-    print(len(chunks))
-    print(chunks[0])
-    embeddings = get_embedding_function()
-    print(embeddings)
-    print(type(embeddings))
-    # print(len(docs))
+    return splitter.split_documents(documents)

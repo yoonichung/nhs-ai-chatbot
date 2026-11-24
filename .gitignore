@@ -9,7 +9,12 @@ wheels/
 # venv
 .venv
 
+# system files
 .DS_Store
 
 # dev env
 dev.env
+
+# vector database storage
+chroma_db/
+chroma/
