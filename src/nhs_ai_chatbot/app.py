@@ -11,6 +11,8 @@ from data import add_to_chroma_db, clear_chroma_db
 from load_pdf import load_pdfs, split_documents
 from query_data import query_rag
 
+GITHUB_REPO_URL = "https://github.com//yoonichung/nhs-ai-chatbot"
+
 st.set_page_config(
     page_title="NHS Brochure AI Assistant",
     page_icon="🏥",
@@ -149,3 +151,8 @@ if submit_button:
                 st.error(f"An error occurred: {e}")
     else:
         st.warning("Please enter a question first.")
+st.divider()
+st.caption(
+    f"This app is a proof of concept (PoC) and not for clinical use. "
+    f"[View codebase on GitHub]({GITHUB_REPO_URL})"
+)
